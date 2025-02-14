@@ -1,4 +1,4 @@
-Societe2, c'est le projet Societe1 (premier ECF)  corrigé. 
+Societe2, c'est le projet Societe (premier ECF)  corrigé. 
 
  Gestion des Clients et Prospects - Application Desktop en Java
 
