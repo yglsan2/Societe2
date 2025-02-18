@@ -9,16 +9,12 @@ import java.util.logging.Logger;
 
 public class ContratDAO {
     private static final Logger LOGGER = Logger.getLogger(ContratDAO.class.getName());
-    private final Connection connection;
-
-    public ContratDAO() throws SQLException {
-        this.connection = Connexion.getInstance().getConnection();
-    }
 
     public List<Contrat> findByIdClient(int idClient) throws SQLException {
         List<Contrat> contrats = new ArrayList<>();
-        String query = "SELECT * FROM contrat WHERE idClient = ?";
-        try (PreparedStatement stmt = connection.prepareStatement(query)) {
+        String query = "SELECT id, idClient, libelle, montant, reference, dateDebut, dateFin FROM contrat WHERE idClient = ?";
+        try (Connection connection = Connexion.getInstance().getConnection();
+             PreparedStatement stmt = connection.prepareStatement(query)) {
             stmt.setInt(1, idClient);
             try (ResultSet rs = stmt.executeQuery()) {
                 while (rs.next()) {
@@ -26,7 +22,10 @@ public class ContratDAO {
                             rs.getInt("id"),
                             rs.getInt("idClient"),
                             rs.getString("libelle"),
-                            rs.getDouble("montant")
+                            rs.getDouble("montant"),
+                            rs.getString("reference"),
+                            rs.getDate("dateDebut"),
+                            rs.getDate("dateFin")
                     );
                     contrats.add(contrat);
                 }

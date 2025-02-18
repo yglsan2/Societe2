@@ -1,9 +1,9 @@
 import com.benja2.entites.*;
 import Vues.*;
 
-import static com.benja2.entites.GestionClient.ajouterClient;
-import static com.benja2.entites.GestionProspect.ajouterProspect;
 import static com.benja2.logging.Logs.*;
+import com.benja2.DAO.ClientDAO;
+import com.benja2.DAO.ProspectDAO;
 
 /**
  * La classe principale de l'application qui démarre l'interface utilisateur
@@ -53,11 +53,9 @@ public class Main {
             Prospect prospect1 = new Prospect("Société X", adresse1, "0601303928", "prospect1@hotmail.com", "Aucun commentaire", "01/02/2023", true);
             Prospect prospect2 = new Prospect("Société Y", adresse2, "0603902920", "prospect2@aol.com", "Aucun commentaire", "25/12/2022", true);
 
-            // Ajout des clients et prospects aux gestionnaires
-            ajouterClient(client1);
-            ajouterClient(client2);
-            ajouterProspect(prospect1);
-            ajouterProspect(prospect2);
+            // Utilisation des DAO pour ajouter les clients et prospects
+            ClientDAO clientDAO = new ClientDAO();
+            ProspectDAO prospectDAO = new ProspectDAO();
 
             LOGGER.info("Clients et prospects ajoutés avec succès.");
 

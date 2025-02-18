@@ -1,8 +1,6 @@
 package com.benja2.DAO;
 
-import com.benja2.entites.Adresse;
 import com.benja2.entites.Client;
-import com.benja2.entites.Contrat;
 import com.benja2.utilitaires.PersoException;
 
 import java.sql.*;
@@ -11,127 +9,169 @@ import java.util.List;
 import java.util.logging.Logger;
 
 public class ClientDAO {
+    private static final Logger LOGGER = Logger.getLogger(ClientDAO.class.getName());
+    private static Connection connection;
 
-    private final Connection connection;
-
-    // Constructeur
+    // Constructeur avec injection de la connexion
     public ClientDAO(Connection connection) {
         this.connection = connection;
     }
 
-    // Méthode pour trouver un client par son ID
-    public Client find(int id) throws SQLException, PersoException {
-        String sql = "SELECT * FROM client WHERE id = ?";
-        try (PreparedStatement statement = connection.prepareStatement(sql)) {
-            statement.setInt(1, id);
-            try (ResultSet resultSet = statement.executeQuery()) {
-                if (resultSet.next()) {
-                    Client client = new Client(
-                            resultSet.getString("nom_societe"),
-                            new Adresse(),
-                            resultSet.getString("telephone"),
-                            resultSet.getString("email"),
-                            resultSet.getLong("chiffre_affaires"),
-                            resultSet.getInt("nb_employes"),
-                            resultSet.getString("commentaire")
-                    );
-                    client.setContrats(getContratsByClientId(id)); // Récupérer les contrats associés
-                    return client;
-                }
-            }
-        }
-        return null; // Retourne null si aucun client n'est trouvé
+    public ClientDAO() {
+        // Initialisation de la connexion si nécessaire
     }
 
-    // Méthode pour récupérer tous les clients
+    // Méthode pour vérifier l'unicité de la raison sociale
+    public boolean isRaisonSocialeExist(String raisonSociale) throws SQLException {
+        String query = "SELECT COUNT(*) FROM client WHERE nomSociete = ?";
+        try (PreparedStatement stmt = connection.prepareStatement(query)) {
+            stmt.setString(1, raisonSociale);
+            try (ResultSet rs = stmt.executeQuery()) {
+                if (rs.next()) {
+                    return rs.getInt(1) > 0; // Si le compte est supérieur à 0, la raison sociale existe
+                }
+            }
+        } catch (SQLException e) {
+            LOGGER.severe("Erreur lors de la vérification de l'unicité de la raison sociale : " + e.getMessage());
+            throw e;
+        }
+        return false;
+    }
+
+    // Méthode pour trouver un client par raison sociale
+    public Client findByRaisonSociale(String raisonSociale) throws SQLException, PersoException {
+        Client client = null;
+        String query = "SELECT * FROM client WHERE nomSociete = ?";
+        try (PreparedStatement stmt = connection.prepareStatement(query)) {
+            stmt.setString(1, raisonSociale);
+            try (ResultSet rs = stmt.executeQuery()) {
+                if (rs.next()) {
+                    client = new Client(
+                            rs.getInt("id"),
+                            rs.getString("nomSociete"),
+                            rs.getString("adresse"),
+                            rs.getString("telephone"),
+                            rs.getString("email"),
+                            rs.getString("commentaire"),
+                            rs.getLong("capital"),
+                            rs.getInt("nbEmployes")
+                    );
+                }
+            }
+        } catch (SQLException | PersoException e) {
+            LOGGER.severe("Erreur lors de la recherche du client avec la raison sociale " + raisonSociale + " : " + e.getMessage());
+            throw e;
+        }
+        return client;
+    }
+
+    // Méthode pour obtenir tous les clients
     public List<Client> findAll() throws SQLException, PersoException {
         List<Client> clients = new ArrayList<>();
-        String sql = "SELECT * FROM client";
-        try (PreparedStatement statement = connection.prepareStatement(sql);
-             ResultSet resultSet = statement.executeQuery()) {
-            while (resultSet.next()) {
+        String query = "SELECT * FROM client";
+        try (PreparedStatement stmt = connection.prepareStatement(query);
+             ResultSet rs = stmt.executeQuery()) {
+            while (rs.next()) {
                 Client client = new Client(
-                        resultSet.getString("nom_societe"),
-                        new Adresse(),
-                        resultSet.getString("telephone"),
-                        resultSet.getString("email"),
-                        resultSet.getLong("chiffre_affaires"),
-                        resultSet.getInt("nb_employes"),
-                        resultSet.getString("commentaire")
+                        rs.getInt("id"),
+                        rs.getString("nomSociete"),
+                        rs.getString("adresse"),
+                        rs.getString("telephone"),
+                        rs.getString("email"),
+                        rs.getString("commentaire"),
+                        rs.getLong("capital"),
+                        rs.getInt("nbEmployes")
                 );
-                client.setContrats(getContratsByClientId(resultSet.getInt("id"))); // Récupérer les contrats associés
                 clients.add(client);
             }
+        } catch (SQLException e) {
+            LOGGER.severe("Erreur lors de la lecture de la table client : " + e.getMessage());
+            throw e;
         }
         return clients;
     }
 
-    // Méthode pour insérer un nouveau client
-    public void insert(Client client) throws SQLException {
-        String sql = "INSERT INTO client (nom_societe, adresse, telephone, email, chiffre_affaires, nb_employes, commentaire) VALUES (?, ?, ?, ?, ?, ?, ?)";
-        try (PreparedStatement statement = connection.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
-            statement.setString(1, client.getRaisonSociale());
-            statement.setString(2, client.getAdresse().toString()); // Convertir l'adresse en String
-            statement.setString(3, client.getTelephone());
-            statement.setString(4, client.getEmail());
-            statement.setLong(5, client.getChiffreAffaires());
-            statement.setInt(6, client.getNombreEmployes());
-            statement.setString(7, client.getCommentaire());
-            statement.executeUpdate();
-
-            // Récupérer l'ID généré
-            try (ResultSet generatedKeys = statement.getGeneratedKeys()) {
-                if (generatedKeys.next()) {
-                    client.setId(generatedKeys.getInt(1));
-                }
-            }
-        }
-    }
-
-    // Méthode pour mettre à jour un client existant
-    public void update(Client client) throws SQLException {
-        String sql = "UPDATE client SET nom_societe = ?, adresse = ?, telephone = ?, email = ?, chiffre_affaires = ?, nb_employes = ?, commentaire = ? WHERE id = ?";
-        try (PreparedStatement statement = connection.prepareStatement(sql)) {
-            statement.setString(1, client.getRaisonSociale());
-            statement.setString(2, client.getAdresse().toString()); // Convertir l'adresse en String
-            statement.setString(3, client.getTelephone());
-            statement.setString(4, client.getEmail());
-            statement.setLong(5, client.getChiffreAffaires());
-            statement.setInt(6, client.getNombreEmployes());
-            statement.setString(7, client.getCommentaire());
-            statement.setInt(8, client.getId());
-            statement.executeUpdate();
-        }
-    }
-
-    // Méthode pour supprimer un client par son ID
-    public void delete(int id) throws SQLException {
-        String sql = "DELETE FROM client WHERE id = ?";
-        try (PreparedStatement statement = connection.prepareStatement(sql)) {
-            statement.setInt(1, id);
-            statement.executeUpdate();
-        }
-    }
-
-    // Méthode pour récupérer les contrats d'un client par son ID
-    private List<Contrat> getContratsByClientId(int clientId) throws SQLException {
-        List<Contrat> contrats = new ArrayList<>();
-        String sql = "SELECT * FROM contrat WHERE client_id = ?";
-        try (PreparedStatement statement = connection.prepareStatement(sql)) {
-            statement.setInt(1, clientId);
-            try (ResultSet resultSet = statement.executeQuery()) {
-                while (resultSet.next()) {
-                    Contrat contrat = new Contrat(
-                            resultSet.getInt("id"),
-                            resultSet.getString("reference"),
-                            resultSet.getDate("date_debut"),
-                            resultSet.getDate("date_fin"),
-                            resultSet.getDouble("montant")
+    // Méthode pour trouver un client par ID
+    public Client find(int id) throws SQLException, PersoException {
+        Client client = null;
+        String query = "SELECT * FROM client WHERE id = ?";
+        try (PreparedStatement stmt = connection.prepareStatement(query)) {
+            stmt.setInt(1, id);
+            try (ResultSet rs = stmt.executeQuery()) {
+                if (rs.next()) {
+                    client = new Client(
+                            rs.getInt("id"),
+                            rs.getString("nomSociete"),
+                            rs.getString("adresse"),
+                            rs.getString("telephone"),
+                            rs.getString("email"),
+                            rs.getString("commentaire"),
+                            rs.getLong("capital"),
+                            rs.getInt("nbEmployes")
                     );
-                    contrats.add(contrat);
                 }
             }
+        } catch (SQLException e) {
+            LOGGER.severe("Erreur lors de la lecture du client avec l'id " + id + " : " + e.getMessage());
+            throw e;
         }
-        return contrats;
+        return client;
+    }
+
+    // Méthode pour sauvegarder un client (insérer ou mettre à jour)
+    public void save(Client client) throws SQLException {
+        if (client.getId() == null) {
+            // Insertion d'un nouveau client
+            String query = "INSERT INTO client (nomSociete, adresse, telephone, email, commentaire, capital, nbEmployes) VALUES (?, ?, ?, ?, ?, ?, ?)";
+            try (PreparedStatement stmt = connection.prepareStatement(query, Statement.RETURN_GENERATED_KEYS)) {
+                stmt.setString(1, client.getRaisonSociale());
+                stmt.setString(2, client.getAdresse().toString());
+                stmt.setString(3, client.getTelephone());
+                stmt.setString(4, client.getEmail());
+                stmt.setString(5, client.getCommentaire());
+                stmt.setLong(6, client.getCapital());
+                stmt.setInt(7, client.getNombreEmployes());
+                stmt.executeUpdate();
+
+                // Récupérer l'ID généré
+                try (ResultSet generatedKeys = stmt.getGeneratedKeys()) {
+                    if (generatedKeys.next()) {
+                        client.setId(generatedKeys.getInt(1));
+                    }
+                }
+            } catch (SQLException e) {
+                LOGGER.severe("Erreur lors de la création du client : " + e.getMessage());
+                throw e;
+            }
+        } else {
+            // Mise à jour d'un client existant
+            String query = "UPDATE client SET nomSociete = ?, adresse = ?, telephone = ?, email = ?, commentaire = ?, capital = ?, nbEmployes = ? WHERE id = ?";
+            try (PreparedStatement stmt = connection.prepareStatement(query)) {
+                stmt.setString(1, client.getRaisonSociale());
+                stmt.setString(2, client.getAdresse().toString());
+                stmt.setString(3, client.getTelephone());
+                stmt.setString(4, client.getEmail());
+                stmt.setString(5, client.getCommentaire());
+                stmt.setLong(6, client.getCapital());
+                stmt.setInt(7, client.getNombreEmployes());
+                stmt.setInt(8, client.getId());
+                stmt.executeUpdate();
+            } catch (SQLException e) {
+                LOGGER.severe("Erreur lors de la mise à jour du client : " + e.getMessage());
+                throw e;
+            }
+        }
+    }
+
+    // Méthode pour supprimer un client par ID
+    public void delete(int id) throws SQLException {
+        String query = "DELETE FROM client WHERE id = ?";
+        try (PreparedStatement stmt = connection.prepareStatement(query)) {
+            stmt.setInt(1, id);
+            stmt.executeUpdate();
+        } catch (SQLException e) {
+            LOGGER.severe("Erreur lors de la suppression du client avec l'id " + id + " : " + e.getMessage());
+            throw e;
+        }
     }
 }
